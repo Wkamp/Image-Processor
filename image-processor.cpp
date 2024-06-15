@@ -82,13 +82,21 @@ public:
       data[i + 2] = gray;
     }
   }
+
+  void invertColors() {
+    for (int i = 0; i < data.size(); i += 3) {
+      data[i] = maxColor - data[i]; 
+      data[i + 1] = maxColor - data[i + 1];
+      data[i + 2] = maxColor - data[i + 2];
+    }
+  }
 };
 
 int main() {
   PPM image;
   
   image.read("mantis.ppm");
-  image.grayscale();
+  image.invertColors();
   image.write("test.ppm");
 
 }
