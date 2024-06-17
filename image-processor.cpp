@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <cstring>
 
 using std::fstream; 
 using std::vector;
@@ -73,6 +74,8 @@ public:
     return true;
   }
 
+  // image filters
+
   void grayscale() {
     int gray = 0;
     for (int i = 0; i < data.size(); i += 3) {
@@ -90,13 +93,80 @@ public:
       data[i + 2] = maxColor - data[i + 2];
     }
   }
+
+
+  void sepia() {
+    grayscale();
+    const int brighten = 2;
+    for (int i = 0; i < data.size(); i += 3) {
+      data[i] = data[i] * 0.439216 * brighten;
+      data[i + 1] = data[i + 1] * 0.258824 * brighten;
+      data[i + 2] = data[i + 2] * 0.078431 * brighten;
+    }
+  }
+
+  void tint(float r, float g, float b, float brighten=1, bool gray=false) {
+    if (gray) {
+      grayscale();
+    }
+    r /= 255;
+    g /= 255;
+    b /= 255;
+
+    for (int i = 0; i < data.size(); i += 3) {
+      data[i] = data[i] * r * brighten;
+      data[i + 1] = data[i + 1] * g * brighten;
+      data[i + 2] = data[i + 2] * b * brighten;
+    }
+  }
+
+  // most basic image segmentation technique
+  void thresholding(int threshold=100) {
+    grayscale();
+
+    for (int i = 0; i < data.size(); i += 3) {
+      if (data[i] > threshold) {
+        data[i] = 255;
+        data[i + 1] = 255;
+        data[i + 2] = 255;
+      }
+      else {
+        data[i] = 0;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+      }
+    }
+  }
+
+  // image warps
+  
+  void verticalFlip() {
+    unsigned char temp[3];
+    int iterations = 0;
+    for (int i = data.size() - 1; i > data.size() / 2; i -= 3) {
+      temp[0] = data[iterations];
+      temp[1] = data[iterations + 1];
+      temp[2] = data[iterations + 2];
+      
+      data[iterations] = data[i - 2];
+      data[iterations + 1] = data[i - 1]; 
+      data[iterations + 2] = data[i]; 
+
+      data[i] = temp[2];
+      data[i - 1] = temp[1];
+      data[i - 2] = temp[0];
+      
+      iterations += 3;
+    }
+  }
+
 };
 
 int main() {
-  PPM image;
+  PPM img;
   
-  image.read("mantis.ppm");
-  image.invertColors();
-  image.write("test.ppm");
+  img.read("bike.ppm");
+  img.sepia();
+  img.write("test.ppm");
 
 }
