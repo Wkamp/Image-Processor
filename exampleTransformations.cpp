@@ -1,17 +1,25 @@
 #include "image-processor.h"
+#include <numbers>
 
 using std::vector;
 using std::string;
 
-int main() {
-  PNM img;
+void symExample(PNM img) {
   vector<PNM> images;
   
-  img.read("ice.ppm");
   images = img.combinedSymmetry();
 
-  string filename;
   for (int i = 0; i < images.size(); i++) {
     images[i].write("sym" + std::to_string(i));
   }
+
+}
+
+
+int main() {
+  PNM img;
+  img.read("ice.ppm");
+  img.rotate(std::numbers::pi / 2, false);
+  symExample(img);
+
 }

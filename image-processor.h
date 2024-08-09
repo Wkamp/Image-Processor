@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <bits/stdc++.h>
 #include <numbers>
+#include <math.h>
 
 using std::vector;
 using std::string;
@@ -21,10 +22,12 @@ private:
   int maxColor;
   int numChannels;
   vector<unsigned char> data;
-
-  double gaussian(int x, int y, double sd);
   
   void setMembers(string filename, int width, int height, int maxColor, int numChannels, vector<unsigned char> data);
+
+  double gaussian(int x, int y, double sd);
+
+  vector<int> rotateCoordinates(int row, int col, double theta);
 
 public:
   bool read(const string& filename);
@@ -59,5 +62,7 @@ public:
   void horizontalSymmetry(char direction='l');
   
   vector<PNM> combinedSymmetry();
+
+  void rotate(double theta, bool degrees=true);
 
 };
