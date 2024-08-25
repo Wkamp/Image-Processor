@@ -30,5 +30,5 @@ int main() {
   beach.write("noisyBeach.pgm");
 
   snow.chromaShift(200, -100, 300, 70);
-  snow.write("shiftedSnow");
+  snow.write("shiftedSnow.ppm");
 }
