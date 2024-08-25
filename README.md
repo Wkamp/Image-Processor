@@ -10,7 +10,7 @@ I've included an example program to showcase some of the image filters and warps
 ```
 make
 ```
-OR
+or
 ```
 g++ exampleTransformations.cpp image-processor.cpp -std=c++20 -o example
 ```
