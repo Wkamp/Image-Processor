@@ -6,13 +6,19 @@ As such I'm going through the Gonzales & Woods book, and implementing a variety 
 ## Example Program
 I've included an example program to showcase some of the image filters and warps.
 ### Compilation Instructions
+#### Linux
 ```
 make
 ```
 OR
 ```
-g++ exampleTransformations.cpp image-processor.cpp -std=c++20
+g++ exampleTransformations.cpp image-processor.cpp -std=c++20 -o example
 ```
+#### Windows
+```
+gcc exampleTransformations.cpp image-processor.cpp -std=c++20 -lstdc++ -o example
+```
+
 ***Note** must be compiled using -std=c++20 flag as the numbers header is used in the project.
 
 ## Usage
