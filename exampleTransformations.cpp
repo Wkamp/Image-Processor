@@ -7,7 +7,7 @@ using std::string;
 void symExample(PNM img) {
   vector<PNM> images;
   
-  images = img.combinedSymmetry();
+  images = img.combinedReflection();
 
   for (int i = 0; i < images.size(); i++) {
     images[i].write("sym" + std::to_string(i));
@@ -17,9 +17,6 @@ void symExample(PNM img) {
 
 
 int main() {
-  PNM img;
-  img.read("ice.ppm");
-  img.rotate(std::numbers::pi / 2, false);
+  PNM img("ice.ppm");
   symExample(img);
-
 }

@@ -1,13 +1,11 @@
 #include "image-processor.h"
 
+// random number generator initialization
+std::random_device dev;
+std::default_random_engine rng(dev());
+
 // private
 
-double PNM::gaussian(int x, int y, double sd) {
-  double ePower = -((x * x + y * y) / (2 * sd * sd));
-  double mainFrac = 1 / (2 * std::numbers::pi * sd * sd);
-
-  return mainFrac * exp(ePower); 
-}
 
 void PNM::setMembers(string filename, int width, int height, int maxColor, int numChannels, vector<unsigned char> data) {
   this->filename = filename;
@@ -17,8 +15,233 @@ void PNM::setMembers(string filename, int width, int height, int maxColor, int n
   this->numChannels = numChannels;
   this->data = data;
 }
+double PNM::normalRand(double sd, double mean) {
+  std::normal_distribution<double> normDist(mean, sd);
+  return normDist(rng);
+}
+int PNM::uniformRand(int min, int max) {
+  std::uniform_int_distribution<int> uniformDist(min, max);
+  return uniformDist(rng);
+}
+
+void PNM::saltNoise(float noiseDensity) {
+  if (numChannels != 1) {
+    return;
+  }
+
+  int numSalt = noiseDensity * width * height;
+
+  for (int i = 0; i < numSalt; i++) {
+    int randRow = uniformRand(0, height - 1);
+    int randCol = uniformRand(0, width - 1);
+
+    data[width * randRow + randCol] = 255;
+  }
+}
+void PNM::pepperNoise(float noiseDensity) {
+  if (numChannels != 1) {
+    return;
+  }
+
+  int numPepper = noiseDensity * width * height;
+
+  for (int i = 0; i < numPepper; i++) {
+    int randRow = uniformRand(0, height - 1);
+    int randCol = uniformRand(0, width - 1);
+
+    data[width * randRow + randCol] = 0;
+  }
+}
+
+void PNM::pixelClip(int pixIndex) {
+  if (data[pixIndex] > 255) {
+    data[pixIndex] = 255;
+  }
+  else if (data[pixIndex] < 0) {
+    data[pixIndex] = 0;
+  }
+
+  if (numChannels == 3) {
+    if (data[pixIndex + 1] > 255) {
+      data[pixIndex + 1] = 255;
+    }
+    else if (data[pixIndex + 1] < 0) {
+      data[pixIndex + 1] = 0;
+    }
+
+    if (data[pixIndex + 2] > 255) {
+      data[pixIndex + 2] = 255;
+    }
+    else if (data[pixIndex + 2] < 0) {
+      data[pixIndex + 2] = 0;
+    }
+
+  }
+}
+
+
+void PNM::pixelSwap(int pixIndex1, int pixIndex2, vector<unsigned char>& vec) {
+  unsigned int temp[numChannels];
+
+  temp[0] = vec[pixIndex1];
+  if (numChannels == 3) {
+    temp[1] = vec[pixIndex1 + 1];
+    temp[2] = vec[pixIndex1 + 2];
+  }
+
+  vec[pixIndex1] = vec[pixIndex2];
+  if (numChannels == 3) {
+    vec[pixIndex1 + 1] = vec[pixIndex2 + 1];
+    vec[pixIndex1 + 2] = vec[pixIndex2 + 2];
+  }
+
+  vec[pixIndex2] = temp[0];
+  if (numChannels == 3) {
+    vec[pixIndex2 + 1] = temp[1];
+    vec[pixIndex2 + 2] = temp[2];
+  }
+}
+
+vector<int> PNM::pixelHSL(int pixIndex) {
+  if (numChannels == 1) {
+    return {0, 0, 0};
+  }
+
+  double r = data[pixIndex];
+  double g = data[pixIndex + 1];
+  double b = data[pixIndex + 2];
+  vector<double> channels = {r, g, b};
+
+  // normalize channels to 0-1
+  channels[0] /= maxColor;
+  channels[1] /= maxColor;
+  channels[2] /= maxColor;
+ 
+  vector<double> sortedChannels = channels;
+  std::sort(sortedChannels.begin(), sortedChannels.end());
+  const double ROUND = 0.5;
+  const int DEGREES = 60;
+  const int PERCENTAGE = 100;
+
+  // calculates chroma and lightness
+  double min = sortedChannels[0];
+  double max = sortedChannels[2];
+  double chroma = max - min;
+  int lightness = ((max + min) / 2) * PERCENTAGE + ROUND;
+
+  // calculates saturation and hue
+  int saturation = 0;
+  int hue = 0;
+  if (chroma != 0) {
+    if (lightness <= 50) {
+      saturation = ((chroma) / (max + min)) * PERCENTAGE + ROUND;
+    }
+    else {
+      saturation = ((chroma) / (2 - chroma)) * PERCENTAGE + ROUND;
+    }
+
+    if (max == channels[0]) {
+      hue = ((channels[1] - channels[2]) / chroma) * DEGREES + ROUND;
+    }
+    else if (max == channels[1]) {
+      hue = (2 + (channels[2] - channels[0]) / (chroma)) * DEGREES + ROUND;
+    }
+    else if (max == channels[2]) {
+      hue = (4 + (channels[0] - channels[1]) / (chroma)) * DEGREES + ROUND;
+    }
+    
+    // esures hue is non-negative and 0 to 360 degrees
+    if (hue < 0) {
+      hue += 360;
+    }
+  }
+
+  return {hue, saturation, lightness};
+}
+
+int PNM::partition(vector<unsigned char>& vec, int low, int high) {
+  int middle = low + (3 * ((high - low) / 6));
+  int pivot = vec[middle];
+  int i = low - 3;
+  int j = high + 3;
+
+  while (true) {
+    do {
+      i += 3;
+    } while (vec[i] < pivot);
+
+    do {
+      j -= 3;
+    } while (vec[j] > pivot); 
+
+    if (i >= j) {return j;}
+
+    pixelSwap(i, j, vec);
+  }
+}
+void PNM::quickSort(vector<unsigned char>& vec, int low, int high) {
+  if (low < high) {
+    int pivot = partition(vec, low, high);
+    quickSort(vec, low, pivot);
+    quickSort(vec, pivot + 3, high);
+  }
+}
+
+
+vector<int> PNM::rotateCoordinates(int row, int col, double theta) {
+  vector<int> coordinates(2);
+  coordinates[0] = std::floor(col * std::sin(theta) + row * std::cos(theta));
+  coordinates[1] = std::floor(col * std::cos(theta) - row * std::sin(theta));
+
+  return coordinates;
+}
+
+double PNM::gaussian(int row, int col, double sd) {
+  double ePower = -((col * col + row * row) / (2 * sd * sd));
+  double mainFrac = 1 / (2 * std::numbers::pi * sd * sd);
+
+  return mainFrac * exp(ePower); 
+}
+
+
+vector<unsigned char> PNM::meanBlur(int radius) {
+  vector<unsigned char> newImgData = data;
+  int kernalSize = 2 * radius + 1;
+  vector<vector<int>> kernal(kernalSize, vector<int>(kernalSize));
+
+  for (int row = radius; row < height - radius; row++) {
+    for (int col = radius; col < width - radius; col++) {
+
+      vector<int> channelSum(numChannels);
+      for (int kernalRow = -radius; kernalRow <= radius; kernalRow++) {
+        for (int kernalCol = -radius; kernalCol <= radius; kernalCol++) {
+          int kernalPixelIndex = (width * (row + kernalRow) + (col + kernalCol)) * numChannels;
+
+          channelSum[0] += data[kernalPixelIndex];
+          if (numChannels == 3) {
+            channelSum[1] += data[kernalPixelIndex + 1];
+            channelSum[2] += data[kernalPixelIndex + 2];
+          }
+
+        }
+      }
+      int pixelIndex = (width * row + col) * numChannels;
+
+      newImgData[pixelIndex] = channelSum[0] / (kernalSize * kernalSize);
+      if (numChannels == 3) {
+        newImgData[pixelIndex + 1] = channelSum[1] / (kernalSize * kernalSize);
+        newImgData[pixelIndex + 2] = channelSum[2] / (kernalSize * kernalSize);
+      }
+    }
+  }
+  return newImgData;
+}
 
 // public
+PNM::PNM() {}
+PNM::PNM(const string& filename) {
+  read(filename);
+}
 
 bool PNM::read(const string& filename) {
   std::fstream fin;
@@ -85,10 +308,101 @@ bool PNM::write(const string& filename, vector<unsigned char> data, int width, i
 
   return true;
 }
+int PNM::getWidth() {
+  return width;
+}
+int PNM::getHeight() {
+  return height;
+}
+int PNM::getNumChannels() {
+  return numChannels;
+}
+
+void PNM::setWidth(int width) {
+  this->width = width;
+}
+void PNM::setHeight(int height) {
+  this->height = height;
+}
+
+void PNM::setAllRChannels(int value) {
+  if (value > 255) {
+    value = 255;
+  }
+  else if (value < 0) {
+    value = 0;
+  }
+
+  for (int i = 0; i < data.size(); i += 3) {
+    data[i] = value;
+  }
+}
+void PNM::setAllGChannels(int value) {
+  if (numChannels != 3) {
+    return;
+  }
+  if (value > 255) {
+    value = 255;
+  }
+  else if (value < 0) {
+    value = 0;
+  }
+
+  for (int i = 1; i < data.size(); i += 3) {
+    data[i] = value;
+  }
+
+}
+void PNM::setAllBChannels(int value) {
+  if (numChannels != 3) {
+    return;
+  }
+  if (value > 255) {
+    value = 255;
+  }
+  else if (value < 0) {
+    value = 0;
+  }
+
+  for (int i = 2; i < data.size(); i += 3) {
+    data[i] = value;
+  }
+
+}
 
 // image filters
 
-void PNM::grayscale() {
+int PNM::brightness(int pixIndex) {
+  if (numChannels == 1) {
+    return data[pixIndex];
+  }
+
+  return (data[pixIndex] + data[pixIndex + 1] + data[pixIndex + 2]) / numChannels;
+}
+
+int PNM::luminence(int pixIndex, int standard/*=709*/) {
+  if (numChannels == 1) {
+    return data[pixIndex];
+  }
+  double magicWeightR = 1;
+  double magicWeightG = 1;
+  double magicWeightB = 1;
+
+  if (standard == 709) {
+    magicWeightR = 0.2126;
+    magicWeightG = 0.7152; 
+    magicWeightB = 0.0722;
+  }
+  else if (standard == 601) {
+    magicWeightR = 0.299;
+    magicWeightG = 0.587; 
+    magicWeightB = 0.114;
+  }
+
+  return data[pixIndex] * magicWeightR + data[pixIndex + 1] * magicWeightG + data[pixIndex + 2] * magicWeightB;
+}
+
+void PNM::grayscale(int standard/*=709*/) {
   if (numChannels == 1) {
     return;
   }
@@ -98,8 +412,12 @@ void PNM::grayscale() {
 
   int gray;
   for (int i = 0; i < data.size(); i += numChannels) {
-    gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-    newImgData[i / 3] = gray;
+    if (standard != 709 && standard != 601) {
+      newImgData[i / 3] = brightness(i);
+    }
+    else {
+      newImgData[i / 3] = luminence(i, standard);
+    }
   }
 
   numChannels = 1;
@@ -128,7 +446,7 @@ void PNM::sepia() {
   const int BRIGHTNESS = 2;
 
   int gray;
-  for (int i = 0; i < data.size(); i += 3) {
+  for (int i = 0; i < data.size(); i += numChannels) {
     gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
 
     data[i] = gray * 0.439216 * BRIGHTNESS;
@@ -137,7 +455,7 @@ void PNM::sepia() {
   }
 }
 
-void PNM::tint(float r, float g, float b, float brightness) {
+void PNM::tint(float r, float g, float b, float brightness/*=1*/) {
   if (numChannels == 1) {
     return;
   }
@@ -146,27 +464,33 @@ void PNM::tint(float r, float g, float b, float brightness) {
   g /= 255;
   b /= 255;
 
-  for (int i = 0; i < data.size(); i += 3) {
+  for (int i = 0; i < data.size(); i += numChannels) {
     data[i] = data[i] * r * brightness;
     data[i + 1] = data[i + 1] * g * brightness;
     data[i + 2] = data[i + 2] * b * brightness;
+    pixelClip(i);
+  }
+}
+
+void PNM::noise(string type, float noiseDensity) {
+  if (type == "salt" || type == "Salt") {
+    saltNoise(noiseDensity);
+  }
+  else if (type == "pepper" || type == "Pepper") {
+    pepperNoise(noiseDensity);
   }
 }
 
 // most basic image segmentation technique
-void PNM::threshold(int epsilon) {
+void PNM::threshold(int epsilon/*=100*/) {
   grayscale();
 
-  for (int i = 0; i < data.size(); i += 3) {
+  for (int i = 0; i < data.size(); i += numChannels) {
     if (data[i] > epsilon) {
       data[i] = 255;
-      data[i + 1] = 255;
-      data[i + 2] = 255;
     }
     else {
       data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
     }
   }
 }
@@ -192,6 +516,55 @@ void PNM::channelSwap(char channel1, char channel2) {
   }
 }
 
+void PNM::blur(string blurType, int radius) {
+  if (blurType == "mean") {
+    data = meanBlur(radius);
+  }
+}
+
+void PNM::chromaShift(int rshift, int gshift, int bshift, int threshold/*=0*/) {
+  if (numChannels == 1) {
+    return;
+  }
+  vector<unsigned char> newImgData = data;
+  rshift *= numChannels;
+  gshift *= numChannels;
+  bshift *= numChannels;
+
+  for (int row = 0; row < height; row++) {
+    for (int col = 0; col < width; col++) {
+      int pixIndex = (width * row + col) * numChannels;
+      if (brightness(pixIndex) < threshold) {
+        continue;
+      }
+
+      if (pixIndex + rshift > 0 && pixIndex + rshift < data.size()) {
+        newImgData[pixIndex + rshift] = data[pixIndex];
+      }
+      if (pixIndex + gshift > 0 && pixIndex + gshift < data.size()) {
+        newImgData[pixIndex + gshift + 1] = data[pixIndex + 1];
+      }
+      if (pixIndex + bshift > 0 && pixIndex + bshift < data.size()) {
+        newImgData[pixIndex + bshift + 2] = data[pixIndex + 2];
+      }
+    }
+  }
+
+  data = newImgData;
+}
+
+// change to gaussian blur when added later
+void PNM::sharpen(double sharpness, int radius) {
+  vector<unsigned char> blurredImage = meanBlur(radius);
+  for (int i = 0; i < data.size(); i += numChannels) { 
+    data[i] = data[i] + sharpness * (data[i] - blurredImage[i]);
+    if (numChannels == 3) {
+      data[i + 1] = data[i + 1] + sharpness * (data[i + 1] - blurredImage[i + 1]);
+      data[i + 2] = data[i + 2] + sharpness * (data[i + 2] - blurredImage[i + 2]);
+    }
+  }
+}
+
 
 // image warps
 
@@ -201,35 +574,23 @@ void PNM::verticalFlip() {
 
   for (int row = 0; row < height / 2; row++) {
     for (int col = 0; col < width; col++) {
+      int topIndex = (width * row + col) * numChannels;
+      int bottomIndex = ((height - row - 1) * width + col) * numChannels; 
 
-      // stores top half of image for swap
-      for (int i = 0; i < numChannels; i++) {
-        temp[i] = data[(width * row + col) * numChannels + i];
-
-      }
-
-      // sets top half of image to bottom half
-      for (int i = 0; i < numChannels; i++) {
-        data[(width * row + col) * numChannels + i] = data[((height - row - 1) * width + col) * numChannels + i];
-      }
-      
-      // sets bottom half of image to top half
-      for (int i = 0; i < numChannels; i++) {
-        data[((height - row - 1) * width + col) * numChannels + i] = temp[i];
-      }
+      pixelSwap(topIndex, bottomIndex, data);
     }
   }
 }
-void PNM::verticalSymmetry(char direction) {
+void PNM::verticalReflection(char direction/*='t'*/) {
   for (int row = 0; row < height / 2; row++) {
     for (int col = 0; col < width; col++) {
 
-      if (direction == 'T' || direction == 't') {
+      if (direction == 't' || direction == 'T') { // 'T' is for top
         for (int i = 0; i < numChannels; i++) {
           data[((height - row - 1) * width + col) * numChannels + i] = data[(width * row + col) * numChannels + i]; 
         }
       }
-      else if (direction == 'B' || direction == 'b') {
+      else if (direction == 'b' || direction == 'B') { // 'B' is for bottom
         for (int i = 0; i < numChannels; i++) {
           data[(width * row + col) * numChannels + i] = data[((height - row - 1) * width + col) * numChannels + i];
         }
@@ -243,34 +604,23 @@ void PNM::horizontalFlip() {
 
   for (int row = 0; row < height; row++) {
     for (int col = 0; col < width / 2; col++) {
+      int leftIndex = (width * row + col) * numChannels;
+      int rightIndex = (((width * row) + (width - 1)) - col) * numChannels; 
 
-      // stores left half of image for swap
-      for (int i = 0; i < numChannels; i++) {
-        temp[i] = data[(width * row + col) * numChannels + i];
-      }
-
-      // sets left half of image to right half
-      for (int i = 0; i < numChannels; i++) {
-        data[(width * row + col) * numChannels + i] = data[(((width * row) + (width - 1)) - col) * numChannels + i];
-      }
-
-      // sets right half of image to left half
-      for (int i = 0; i < numChannels; i++) {
-        data[(((width * row) + (width - 1)) - col) * numChannels + i] = temp[i];
-      }
+      pixelSwap(leftIndex, rightIndex, data);
     }
   }
 }
-void PNM::horizontalSymmetry(char direction) {
+void PNM::horizontalReflection(char direction/*='l'*/) {
   for (int row = 0; row < height; row++) {
     for (int col = 0; col < width / 2; col++) {
 
-      if (direction == 'L' || direction == 'l') {
+      if (direction == 'l' || direction == 'L') { // 'L' is for left
         for (int i = 0; i < numChannels; i++) {
           data[(((width * row) + (width - 1)) - col) * numChannels + i] = data[(width * row + col) * numChannels + i]; 
         }
       }
-      if (direction == 'R' || direction == 'r') {
+      else if (direction == 'r' || direction == 'R') { // 'R' is for right
         for (int i = 0; i < numChannels; i++) {
           data[(width * row + col) * numChannels + i] = data[(((width * row) + (width - 1)) - col) * numChannels + i];
         }
@@ -279,8 +629,8 @@ void PNM::horizontalSymmetry(char direction) {
   }
 }
 
-vector<PNM> PNM::combinedSymmetry() {
-  vector<PNM> symmetricalImages;
+vector<PNM> PNM::combinedReflection() {
+  vector<PNM> reflectedImages;
   
   PNM temp;
   for (int i = 0; i < 4; i++) {
@@ -288,40 +638,56 @@ vector<PNM> PNM::combinedSymmetry() {
 
     switch(i) {
       case 0:
-        temp.verticalSymmetry('t');
-        temp.horizontalSymmetry('l');
+        temp.verticalReflection('t');
+        temp.horizontalReflection('l');
         break;
 
       case 1:
-        temp.verticalSymmetry('t');
-        temp.horizontalSymmetry('r');
+        temp.verticalReflection('t');
+        temp.horizontalReflection('r');
         break;
 
       case 2:
-        temp.verticalSymmetry('b');
-        temp.horizontalSymmetry('l');
+        temp.verticalReflection('b');
+        temp.horizontalReflection('l');
         break;
 
       case 3:
-        temp.verticalSymmetry('b');
-        temp.horizontalSymmetry('r');
+        temp.verticalReflection('b');
+        temp.horizontalReflection('r');
         break;
     }
-    symmetricalImages.push_back(temp);
+    reflectedImages.push_back(temp);
   }
-  return symmetricalImages;
+  return reflectedImages;
 }
 
-vector<int> PNM::rotateCoordinates(int row, int col, double theta) {
-  vector<int> coordinates(2);
-  coordinates[0] = std::floor(col * std::sin(theta) + row * std::cos(theta));
-  coordinates[1] = std::floor(col * std::cos(theta) - row * std::sin(theta));
+void PNM::rectCrop(std::array<int, 2> upperLeft, int newWidth, int newHeight) {
+  if (newWidth > width || newHeight > height) {
+    return;
+  }
 
-  return coordinates;
+  vector<unsigned char> newImgData(newWidth * newHeight * numChannels);
+
+  for (int row = 0; row < newHeight; row++) {
+    for (int col = 0; col < newWidth; col++) {
+      int oldIndex = ((upperLeft[0] + row) * width + (upperLeft[1] + col)) * numChannels;
+      int newIndex = (newWidth * row + col) * numChannels;
+
+      newImgData[newIndex] = data[oldIndex];
+      if (numChannels == 3) {
+        newImgData[newIndex + 1] = data[oldIndex + 1];
+        newImgData[newIndex + 2] = data[oldIndex + 2];
+      }
+    }
+  }
+
+  width = newWidth;
+  height = newHeight;
+  data = newImgData;
 }
 
-
-void PNM::rotate(double theta, bool degrees) {
+void PNM::rotate(double theta, bool degrees/*=true*/) {
   if (degrees) { // converts to radians
     theta *= std::numbers::pi / 180;
   }
@@ -332,7 +698,7 @@ void PNM::rotate(double theta, bool degrees) {
 
   // computes rotated image height and width
   width = std::abs(oldWidth * std::cos(theta)) + std::abs(oldHeight * std::sin(theta));
-  height = std::abs(oldWidth * std::sin(theta)) + std::abs(oldHeight * std::cos(theta)) + 1; // plus one fixes row index off-by-one, more proper fix should be done later
+  height = std::abs(oldWidth * std::sin(theta)) + std::abs(oldHeight * std::cos(theta)) + 1; // off-by-one error without +1, proper fix should be done
 
   vector<unsigned char> newImgData(width * height * numChannels);
 
@@ -363,18 +729,14 @@ void PNM::rotate(double theta, bool degrees) {
   int minCol = std::abs(*min2);
 
   // computes rotation
-  int newRowIndex;
-  int newColIndex;
-  int newIndex;
-  int oldIndex; 
   for (int row = 0; row < oldHeight; row++) {
     for (int col = 0; col < oldWidth; col++) {
-      oldIndex = (oldWidth * row + col) * numChannels;
+      int oldIndex = (oldWidth * row + col) * numChannels;
       tempRotatedCoordinates = rotateCoordinates(row, col, theta);
 
-      newRowIndex = tempRotatedCoordinates[0] + minRow;
-      newColIndex = tempRotatedCoordinates[1] + minCol;
-      newIndex = (width * newRowIndex + newColIndex) * numChannels;
+      int newRowIndex = tempRotatedCoordinates[0] + minRow;
+      int newColIndex = tempRotatedCoordinates[1] + minCol;
+      int newIndex = (width * newRowIndex + newColIndex) * numChannels;
 
       newImgData[newIndex] = data[oldIndex];
 
@@ -388,16 +750,45 @@ void PNM::rotate(double theta, bool degrees) {
   data = newImgData;
 }
 
+void PNM::testSort() {
+  for (int row = 0; row < height; row++) {
+    for (int col = 0; col < width; col++) {
+      int minIndex = (width * row + col) * numChannels;
 
+      for (int k = (width * row + col) * numChannels; k < (height * width) * numChannels; k += numChannels) {
+        if (data[minIndex] > data[k]) {
+          pixelSwap(minIndex, k, data);
+        }
+      }
+    }
+  }
+}
 
+void PNM::scale(double widthScale, double heightScale, string interpolation/*="neighbor"*/) {
+  vector<unsigned char> newImgData(width * widthScale * height * heightScale * numChannels);
+  const double ROUND = 0.5;
 
+  for (int row = 0; row < height * heightScale; row++) {
+    for (int col = 0; col < width * widthScale; col++) {
+      int newIndex = (width * widthScale * row + col) * numChannels;
 
+      int oldRowIndex = (row / heightScale) + ROUND;
+      int oldColIndex = (col / widthScale) + ROUND;
+      int oldIndex = (width * oldRowIndex + oldColIndex) * numChannels;
 
+      newImgData[newIndex] = data[oldIndex];
+      if (numChannels == 3) {
+        newImgData[newIndex + 1] = data[oldIndex + 1];
+        newImgData[newIndex + 2] = data[oldIndex + 2];
+      }
+    }
+  }
 
+  data = newImgData;
+  width *= widthScale;
+  height *= heightScale;
+}
 
-
-
-
-
-
-
+void PNM::pixelSort(char direction/*='l'*/, string sortCriteria, bool stable /*=false*/) {
+  quickSort(data, 0, width * height * numChannels - 3);
+}
