@@ -23,6 +23,7 @@ gcc exampleTransformations.cpp image-processor.cpp -std=c++20 -lstdc++ -o exampl
 
 ## Usage
 You need to convert your images to .ppm or .pgm(grayscale) format, the easiest way is to use [imageMagick](https://imagemagick.org/script/download.php).\
+
 If you're on windows you will not be able view the converted files without third party software such as photoshop, or an online tool like [photopea](https://www.photopea.com/).
 To avoid installing additional software on windows I'd recommend just converting your image back to an easily viewable format such as .png, after you've run the program.
 
