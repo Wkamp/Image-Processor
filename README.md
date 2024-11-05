@@ -3,6 +3,8 @@
 I got interested in image processing after seeing it's variety of applications in machine learning, but my university only offers a class for graduate students.
 As such I'm going through the Gonzales & Woods book, and implementing a variety of image processing functions to get a better understanding of processing techniques.
 
+For more details on how the processor works you can read the [blog post on my website](https://eiron.xyz/image-processor/image-processor.html)
+
 ## Example Program
 I've included an example program to showcase some of the image filters and warps.
 ### Compilation Instructions
