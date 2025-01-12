@@ -30,4 +30,4 @@ If you're on windows you will not be able view the converted files without third
 To avoid installing additional software on windows I'd recommend just converting your image back to an easily viewable format such as .png, after you've run the program.
 
 ## Why use the PNM format?
-It's hands-down the simplest image format. I may at some point explore some compression techniques, but I don't intend to support modern image formats as this is a learning project, not a commercial one.
+It's hands-down the simplest image format. I may at some point explore some compression techniques, but I don't intend to support modern image formats as this is a learning project.
