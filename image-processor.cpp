@@ -1,4 +1,5 @@
 #include "image-processor.h"
+#include <filesystem>
 
 // random number generator initialization
 std::random_device dev;
@@ -7,8 +8,8 @@ std::default_random_engine rng(dev());
 // private
 
 
-void PNM::setMembers(string filename, int width, int height, int maxColor, int numChannels, vector<unsigned char> data) {
-  this->filename = filename;
+void PNM::setMembers(std::filesystem::path filepath, int width, int height, int maxColor, int numChannels, vector<unsigned char> data) {
+  this->filepath = filepath;
   this->width = width;
   this->height = height;
   this->maxColor = maxColor;
@@ -239,16 +240,16 @@ vector<unsigned char> PNM::meanBlur(int radius) {
 
 // public
 PNM::PNM() {}
-PNM::PNM(const string& filename) {
-  read(filename);
+PNM::PNM(const std::filesystem::path& filepath) {
+  read(filepath);
 }
 
-bool PNM::read(const string& filename) {
+bool PNM::read(const std::filesystem::path& filepath) {
   std::fstream fin;
-  fin.open(filename, std::ios::in | std::ios::binary);
+  fin.open(filepath, std::ios::in | std::ios::binary);
 
   if (!fin) {
-    std::cerr << "Error: Failed to open " << filename << std::endl;
+    std::cerr << "Error: Failed to open " << filepath << std::endl;
     return false;
   }
 
@@ -265,7 +266,7 @@ bool PNM::read(const string& filename) {
     numChannels = 1;
   }
 
-  this->filename = filename;
+  this->filepath = filepath;
   fin >> width >> height >> maxColor;
   fin.ignore(1); // ignores newline after max color;
 
@@ -281,17 +282,42 @@ bool PNM::read(const string& filename) {
 }
 
 bool PNM::write() {
-  return write(filename, data, width, height, maxColor, numChannels);
+  return write(filepath, data, width, height, maxColor, numChannels);
 }
-bool PNM::write(const string& filename) {
-  return write(filename, data, width, height, maxColor, numChannels);
+bool PNM::write(const std::filesystem::path& filepath) {
+  return write(filepath, data, width, height, maxColor, numChannels);
 }
-bool PNM::write(const string& filename, vector<unsigned char> data, int width, int height, int maxColor, int numChannels) {
+bool PNM::write(const std::filesystem::path& filepath, vector<unsigned char> data, int width, int height, int maxColor, int numChannels) {
   std::fstream fout;
-  fout.open(filename, std::ios::out | std::ios::binary);
+
+  // assumes output path is cwd if only filename given
+  std::filesystem::path parentPath = filepath.parent_path();
+  if (parentPath.empty()) {
+    parentPath = std::filesystem::current_path();
+  }
+
+  // creates dir if it doesn't exist
+  if (!std::filesystem::exists(parentPath)) {
+    if (!std::filesystem::create_directories(parentPath)) {
+      std::cerr << "Error: Failed to create directory " << parentPath << std::endl;
+      return false;
+    }
+  }
+
+  std::filesystem::path outputPath = filepath;
+
+  if (numChannels == 3) {
+    outputPath.replace_extension(".ppm");
+  }
+  else {
+    outputPath.replace_extension(".pgm");
+  }
+
+
+  fout.open(outputPath, std::ios::out | std::ios::binary);
 
   if (!fout) {
-    std::cerr << "Error: Failed to open " << filename << std::endl;
+    std::cerr << "Error: Failed to open " << outputPath << std::endl;
     return false;
   }
 
@@ -422,9 +448,6 @@ void PNM::grayscale(int standard/*=709*/) {
 
   numChannels = 1;
   data = newImgData;
-  if (filename.substr(filename.size() - 4, 4) == ".ppm") {
-      filename.replace(filename.size() - 4, 4, ".pgm");
-  }
 }
 
 void PNM::invertColor() {
@@ -634,7 +657,7 @@ vector<PNM> PNM::combinedReflection() {
   
   PNM temp;
   for (int i = 0; i < 4; i++) {
-    temp.setMembers(filename, width, height, maxColor, numChannels, data);
+    temp.setMembers(filepath, width, height, maxColor, numChannels, data);
 
     switch(i) {
       case 0:

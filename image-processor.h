@@ -12,20 +12,21 @@
 #include <bits/stdc++.h>
 #include <numbers>
 #include <math.h>
+#include <filesystem>
 
 using std::vector;
 using std::string;
 
 class PNM {
 private:
-  string filename;
+  std::filesystem::path filepath;
   int width;
   int height;
   int maxColor;
   int numChannels;
   vector<unsigned char> data;
 
-  void setMembers(string filename, int width, int height, int maxColor, int numChannels, vector<unsigned char> data);
+  void setMembers(std::filesystem::path filepath, int width, int height, int maxColor, int numChannels, vector<unsigned char> data);
 
   double normalRand(double sd, double mean);
   int uniformRand(int min, int max);
@@ -56,12 +57,12 @@ private:
 
 public:
   PNM();
-  PNM(const string& filename);
-  bool read(const string& filename);
+  PNM(const std::filesystem::path& filepath);
+  bool read(const std::filesystem::path& filepath);
 
   bool write();
-  bool write(const string& filename);
-  bool write(const string& filename, vector<unsigned char> data, int width, int height, int maxColor, int numChannels);
+  bool write(const std::filesystem::path& filepath);
+  bool write(const std::filesystem::path& filepath, vector<unsigned char> data, int width, int height, int maxColor, int numChannels);
 
   int getWidth();
   int getHeight();
