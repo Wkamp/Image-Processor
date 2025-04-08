@@ -550,25 +550,26 @@ void PNM::chromaShift(int rshift, int gshift, int bshift, int threshold/*=0*/) {
     return;
   }
   vector<unsigned char> newImgData = data;
-  rshift *= numChannels;
-  gshift *= numChannels;
-  bshift *= numChannels;
 
   for (int row = 0; row < height; row++) {
     for (int col = 0; col < width; col++) {
-      int pixIndex = (width * row + col) * numChannels;
-      if (brightness(pixIndex) < threshold) {
+      int pixIdx = (width * row + col) * numChannels;
+      if (threshold > 0 && brightness(pixIdx) < threshold) {
         continue;
       }
 
-      if (pixIndex + rshift > 0 && pixIndex + rshift < data.size()) {
-        newImgData[pixIndex + rshift] = data[pixIndex];
+      int rpos = pixIdx + rshift * numChannels;
+      int gpos = pixIdx + gshift * numChannels + 1;
+      int bpos = pixIdx + bshift * numChannels + 2;
+
+      if (rpos >= 0 && rpos < data.size()) {
+        newImgData[rpos] = data[pixIdx];
       }
-      if (pixIndex + gshift > 0 && pixIndex + gshift < data.size()) {
-        newImgData[pixIndex + gshift + 1] = data[pixIndex + 1];
+      if (gpos >= 0 && gpos < data.size()) {
+        newImgData[gpos] = data[pixIdx + 1];
       }
-      if (pixIndex + bshift > 0 && pixIndex + bshift < data.size()) {
-        newImgData[pixIndex + bshift + 2] = data[pixIndex + 2];
+      if (bpos >= 0 && bpos < data.size()) {
+        newImgData[bpos] = data[pixIdx + 2];
       }
     }
   }
